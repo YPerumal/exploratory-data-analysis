@@ -3,9 +3,10 @@ library(ggplot2)
 library(tidyr)
 library(gridExtra)
 library(patchwork)
+library(scales)
 
-# Not done just yet!
-
+# load datasets we'll use
+data(sleep)
 data(diamonds)
 data(co2)
 # tidy co2 
@@ -13,6 +14,21 @@ co2 <- data.frame(Year = rep(1959:1997, each = 12),
                   Month = rep(format(ISOdate(2004,1:12,1),"%B"), 39),
                   co2 = as.numeric(co2))
 
+matrics <- data.frame(
+  year = 2014:2018,
+  EC = c(65.4,56.8,59.3,65,70.6),
+  FS = c(82.8,81.6,88.2,86.1,87.5),
+  Gau = c(84.7,84.2,85.1,85.1,87.9),
+  KZN = c(69.7,60.7,66.4,72.9,76.2),
+  Lim = c(72.9,65.9,62.5,65.6,69.4),
+  Mpu = c(79,78.6,77.1,74.8,79),
+  NW = c(84.6,81.5,82.5,79.4,81.1),
+  NC = c(76.4,69.4,78.7,75.6,73.3),
+  WC = c(82.2,87.7,85.9,82.8,81.5)
+)
+matrics
+matrics_long <- pivot_longer(matrics, cols = -1, names_to = "province", values_to = "pass_rate")
+matrics_long
 # geometries
 # geometries denoted by geom_xxx are the building blocks of ggplots
 
@@ -41,6 +57,13 @@ diamonds %>%
 # EXERCISE: adapt each of the plots above so that the densities/histograms are 
 # either "smoother" or "rougher". Choose an appropriate amount of smoothing.
 
+# ?geom_density
+# geom density
+diamonds %>% 
+  ggplot(aes(x = price)) + 
+  geom_density(adjust = 4)
+
+# ?geom_histogram
 ## geom_bar
 
 # default behaviour for geom_bar is to count stuff, so 1D
@@ -62,6 +85,9 @@ diamonds %>% ggplot(aes(x = carat, y = price)) +
   geom_smooth()
 
 # EXERCISE: adapt the code you just used to fit a straight line rather than a smooth
+diamonds %>% ggplot(aes(x = carat, y = price)) + 
+  geom_point() + 
+  geom_smooth(method='lm')
 
 ## geom_line
 
@@ -71,9 +97,25 @@ co2 %>% filter(Month == "January") %>%
 
 # EXERCISE: show lines for all 12 months on the plot (a) by using fill or colour, 
 # (b) without using fill or colour
+# a)
+co2 %>%
+  ggplot(aes(x = Year, y = co2,colour = Month)) + 
+  geom_line()
+
+# b)
+#Got it to split, but no legend, kinda useless to read without colours.
+co2 %>%
+  ggplot(aes(x = Year, y = co2)) + 
+  geom_line(aes(split=Month))
 
 # EXERCISE: flip Month and Year around so that each line represents a Year, and the 
 # Month is on the x-axis
+
+#This graph doesn't make sense
+co2 %>%
+  ggplot(aes(x = Month, y = co2,colour = Year)) + 
+  geom_line()
+
 
 ## geom_area
 
@@ -114,10 +156,36 @@ diamonds %>%
 # Try facetting by cut and grouping by carat. Try facetting by carat and grouping by cut. 
 # Which do you prefer?
 
+# a)
+diamonds %>%
+  ggplot(aes(x=carat,y=price)) + 
+  geom_point() +
+  facet_wrap(~cut)
+
+diamonds %>%
+  ggplot(aes(x=cut,y=price)) + 
+  geom_point() +
+  facet_wrap(~cut_number(carat,n=5))
+
+# I think a) works better, especially if not using a summarise function
+
+
 # EXERCISE: Compare the relationship between price and carat for each colour.
 # What makes it hard to compare the groups? Is grouping better or facetting? 
 # If you use facetting, what annotation might you add to make it easier to see 
 # the differences between panels?
+#groupby
+diamonds %>% group_by(color) %>%
+  ggplot(aes(x=carat,y=price)) + 
+  geom_point() 
+#All squashed together here.
+
+diamonds %>%
+  ggplot(aes(x=carat,y=price)) + 
+  geom_point() +
+  facet_wrap(~color)
+#Faceting in better.Add a mean/median line annotation?
+
 
 ### Labels (labs)
 
@@ -222,25 +290,111 @@ pp +
         axis.title = element_text(colour = "red", size = rel(1.5)))
 
 
+# revisiting log scale example from lecture
+data(msleep)
+
+a <- ggplot(msleep, aes(x = bodywt, y = brainwt)) + 
+  geom_point(na.rm = TRUE) + 
+  labs(x = "Body weight (kg)", y = "Brain weight (kg)")
+a 
+
+# log scaling
+a + scale_x_log10() + scale_y_log10() 
+
+# nice tick marks with annotation_xxx
+a + scale_x_log10() + scale_y_log10() + annotation_logticks() 
+
+# advanced axis breaks and labelling options with scales package
+a + scale_x_log10(
+  breaks = scales::trans_breaks("log10", function(x) 10^x),
+  labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+  scale_y_log10(
+    breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+  annotation_logticks() +
+  labs(x = "Body weight (kg)", y = "Brain weight (kg)")
+
 # EXERCISE: choose any of the plots you've made and add axis labels, title, and 
 # subtitle
+diamonds %>%
+  ggplot(aes(x=carat,y=price)) + 
+  geom_point() +
+  facet_wrap(~cut)+
+  labs(x="Carat",
+       y="Price",
+       title = "Plot Comparing Price vs Carat",
+       subtitle = "Facetted by Cut")
 
 # EXERCISE: Improve the plot below by adding appropriate axis labels, 
 # rotating the x axis text so that it is vertical, and change
 # the axis text so that it does not include numbers in scientific notation
-
+options(scipen = 999) 
 diamonds %>%
-  ggplot(aes(x = cut_interval(price, n = 5))) + 
-  geom_bar()
+  ggplot(aes(x = cut_interval(price, n = 5,dig.lab = 5))) + 
+  geom_bar()+
+  labs(x="Diamond Cut",y="Frequency",title = "Countplot of Various Diaomnd Cuts")+
+  theme(axis.text.x = element_text(angle = 90))
 
 # EXERCISE: Use geom_label to add a label to the plot below that identifies 
 # the diamond with the largest value-per-carat. Bonus: make the labelling 
 # "automatic" so that it still works if you resample another 10 diamonds 
 # (make the label's location dynamic, rather than at a fixed (x,y) location)
 
-diamonds %>% sample_n(10) %>%
-  ggplot(aes(x = carat, y = price)) + 
-  geom_point()
+library(ggrepel)
+d <- diamonds %>% sample_n(10)
+d %>%ggplot(aes(x = carat, y = price)) + 
+  geom_point()+
+  geom_label_repel(data = d%>%filter(price==max(price)),aes(label=max(price)))
+
+### Legends
+
+# revisiting class example #1
+s1 <- ggplot(msleep, 
+       aes(x = bodywt, y = brainwt, colour = order)) +
+  geom_point(na.rm = TRUE) + 
+  scale_x_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+                labels = scales::trans_format("log10",scales::math_format(10^.x))) + 
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+                labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+  annotation_logticks() +
+  xlab("Body weight (kg)") + ylab("Brain weight (kg)") 
+s1 
+
+s1 + theme(legend.position = "bottom") 
+s1 + theme(legend.position = "bottom") + guides(colour = guide_legend(ncols = 8))
+
+matrics_long %>% 
+  ggplot(aes(x = year, y = pass_rate, colour = province)) +
+  geom_line() + theme_bw() + scale_colour_brewer(palette = "Set3")
+
+
+# revisiting class example #2
+
+s2 <- matrics_long %>% 
+  ggplot(aes(x = year, y = pass_rate, colour = province)) +
+  geom_line() + theme_bw() + scale_colour_brewer(palette = "Set3") 
+
+# inset legend 
+s2 +
+  # coordinates for legend.position are x- and y- offsets from the bottom-left of the plot, ranging from 0 - 1.
+  theme(legend.position = c(0.82,0.12), legend.title = element_blank(), 
+        legend.text=element_text(size=8)) +
+  guides(colour = guide_legend(ncol = 3))
+
+# with geom_label
+
+# make dataframe with x and y coords of labels, here just taking 2015 as x and 
+# pass rate in 2015 as y, for illustration
+textlabels <- matrics_long %>% filter(year == 2015) %>% 
+  mutate(xpos = year, ypos = pass_rate) # don't have to rename, again for illustration
+
+s2 +
+  geom_label(data = textlabels, aes(x = xpos, y = ypos, label = province)) +
+  theme(legend.position = "none")
+
+s2 +
+  geom_label_repel(data = textlabels, aes(x = xpos, y = ypos, label = province)) +
+  theme(legend.position = "none")
 
 ### Adding geoms from different datasets
 
